@@ -157,6 +157,59 @@ export async function addToCart({
     .catch(medusaError)
 }
 
+export async function addBundleToCart({
+  variantIds,
+  countryCode,
+  bundleId,
+  bundleTitle,
+  parentProductId,
+}: {
+  variantIds: string[]
+  countryCode: string
+  bundleId: string
+  bundleTitle: string
+  parentProductId: string
+}) {
+  const uniqueVariantIds = Array.from(new Set(variantIds.filter(Boolean)))
+
+  if (!uniqueVariantIds.length) {
+    throw new Error("Missing variant IDs when adding bundle to cart")
+  }
+
+  const cart = await getOrSetCart(countryCode)
+
+  if (!cart) {
+    throw new Error("Error retrieving or creating cart")
+  }
+
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  for (const variantId of uniqueVariantIds) {
+    await sdk.store.cart.createLineItem(
+      cart.id,
+      {
+        variant_id: variantId,
+        quantity: 1,
+        metadata: {
+          bundle_id: bundleId,
+          bundle_title: bundleTitle,
+          parent_product_id: parentProductId,
+        },
+      },
+      {},
+      headers
+    )
+  }
+
+  const cartCacheTag = await getCacheTag("carts")
+  revalidateTag(cartCacheTag)
+
+  const fulfillmentCacheTag = await getCacheTag("fulfillment")
+  revalidateTag(fulfillmentCacheTag)
+}
+
 export async function updateLineItem({
   lineId,
   quantity,

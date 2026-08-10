@@ -1,6 +1,7 @@
 "use client"
 
-import { addToCart } from "@lib/data/cart"
+import { addBundleToCart, addToCart } from "@lib/data/cart"
+import type { StoreProductBundle } from "@lib/data/bundles"
 import { useIntersection } from "@lib/hooks/use-in-view"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
@@ -17,6 +18,7 @@ type ProductActionsProps = {
   product: HttpTypes.StoreProduct
   region: HttpTypes.StoreRegion
   disabled?: boolean
+  bundle?: StoreProductBundle | null
 }
 
 const optionsAsKeymap = (
@@ -31,6 +33,7 @@ const optionsAsKeymap = (
 export default function ProductActions({
   product,
   disabled,
+  bundle,
 }: ProductActionsProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -39,6 +42,7 @@ export default function ProductActions({
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
   const [isAdding, setIsAdding] = useState(false)
   const countryCode = useParams().countryCode as string
+  const isBundleProduct = Boolean(bundle?.items.length)
 
   // If there is only 1 variant, preselect the options
   useEffect(() => {
@@ -126,11 +130,26 @@ export default function ProductActions({
 
     setIsAdding(true)
 
-    await addToCart({
-      variantId: selectedVariant.id,
-      quantity: 1,
-      countryCode,
-    })
+    if (isBundleProduct && bundle) {
+      await addBundleToCart({
+        variantIds: [
+          selectedVariant.id,
+          ...bundle.items
+            .map((item) => item.variant_id)
+            .filter((variantId): variantId is string => Boolean(variantId)),
+        ],
+        countryCode,
+        bundleId: bundle.id,
+        bundleTitle: bundle.title,
+        parentProductId: product.id,
+      })
+    } else {
+      await addToCart({
+        variantId: selectedVariant.id,
+        quantity: 1,
+        countryCode,
+      })
+    }
 
     setIsAdding(false)
   }
@@ -162,6 +181,35 @@ export default function ProductActions({
 
         <ProductPrice product={product} variant={selectedVariant} />
 
+        {bundle && (
+          <div className="border-ui-border-base flex flex-col gap-y-3 rounded-md border p-4">
+            <div className="flex flex-col gap-y-1">
+              <p className="text-base-regular font-semibold">{bundle.title}</p>
+              {bundle.description && (
+                <p className="text-small-regular text-ui-fg-subtle">
+                  {bundle.description}
+                </p>
+              )}
+            </div>
+
+            {bundle.items.length > 0 && (
+              <ul className="flex flex-col gap-y-2">
+                {bundle.items.map((item) => (
+                  <li
+                    className="text-small-regular flex items-center justify-between gap-x-3"
+                    key={item.product_id}
+                  >
+                    <span>{item.title}</span>
+                    {!item.variant_id && (
+                      <span className="text-ui-fg-subtle">No variant</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         <Button
           onClick={handleAddToCart}
           disabled={
@@ -180,6 +228,8 @@ export default function ProductActions({
             ? "Select variant"
             : !inStock || !isValidVariant
             ? "Out of stock"
+            : isBundleProduct
+            ? "Add bundle to cart"
             : "Add to cart"}
         </Button>
         <MobileActions
@@ -189,6 +239,7 @@ export default function ProductActions({
           updateOptions={setOptionValue}
           inStock={inStock}
           handleAddToCart={handleAddToCart}
+          addToCartText={isBundleProduct ? "Add bundle" : "Add to cart"}
           isAdding={isAdding}
           show={!inView}
           optionsDisabled={!!disabled || isAdding}

@@ -18,6 +18,7 @@ type MobileActionsProps = {
   updateOptions: (title: string, value: string) => void
   inStock?: boolean
   handleAddToCart: () => void
+  addToCartText?: string
   isAdding?: boolean
   show: boolean
   optionsDisabled: boolean
@@ -30,6 +31,7 @@ const MobileActions: React.FC<MobileActionsProps> = ({
   updateOptions,
   inStock,
   handleAddToCart,
+  addToCartText = "Add to cart",
   isAdding,
   show,
   optionsDisabled,
@@ -127,7 +129,7 @@ const MobileActions: React.FC<MobileActionsProps> = ({
                   ? "Select variant"
                   : !inStock
                   ? "Out of stock"
-                  : "Add to cart"}
+                  : addToCartText}
               </Button>
             </div>
           </div>
