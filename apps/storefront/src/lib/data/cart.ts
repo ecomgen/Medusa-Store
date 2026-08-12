@@ -127,10 +127,16 @@ export async function addToCart({
     throw new Error("Missing variant ID when adding to cart")
   }
 
-  const cart = await getOrSetCart(countryCode)
+  let cartId = await getCartId()
 
-  if (!cart) {
-    throw new Error("Error retrieving or creating cart")
+  if (!cartId) {
+    const cart = await getOrSetCart(countryCode)
+
+    if (!cart) {
+      throw new Error("Error retrieving or creating cart")
+    }
+
+    cartId = cart.id
   }
 
   const headers = {
@@ -139,7 +145,7 @@ export async function addToCart({
 
   await sdk.store.cart
     .createLineItem(
-      cart.id,
+      cartId,
       {
         variant_id: variantId,
         quantity,
@@ -176,32 +182,40 @@ export async function addBundleToCart({
     throw new Error("Missing variant IDs when adding bundle to cart")
   }
 
-  const cart = await getOrSetCart(countryCode)
+  let cartId = await getCartId()
 
-  if (!cart) {
-    throw new Error("Error retrieving or creating cart")
+  if (!cartId) {
+    const cart = await getOrSetCart(countryCode)
+
+    if (!cart) {
+      throw new Error("Error retrieving or creating cart")
+    }
+
+    cartId = cart.id
   }
 
   const headers = {
     ...(await getAuthHeaders()),
   }
 
-  for (const variantId of uniqueVariantIds) {
-    await sdk.store.cart.createLineItem(
-      cart.id,
-      {
-        variant_id: variantId,
-        quantity: 1,
-        metadata: {
-          bundle_id: bundleId,
-          bundle_title: bundleTitle,
-          parent_product_id: parentProductId,
+  await Promise.all(
+    uniqueVariantIds.map((variantId) =>
+      sdk.store.cart.createLineItem(
+        cartId,
+        {
+          variant_id: variantId,
+          quantity: 1,
+          metadata: {
+            bundle_id: bundleId,
+            bundle_title: bundleTitle,
+            parent_product_id: parentProductId,
+          },
         },
-      },
-      {},
-      headers
+        {},
+        headers
+      )
     )
-  }
+  ).catch(medusaError)
 
   const cartCacheTag = await getCacheTag("carts")
   revalidateTag(cartCacheTag)
